@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Weather</title>
+
+<!-- iOS "Add to Home Screen" support -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Weather" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#2b3a55" />
+
+<link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Location switcher -->
+  <header class="location-bar">
+    <button id="btn-locate" class="icon-btn" aria-label="Use current location">📍</button>
+    <button id="btn-open-location" class="location-name-btn">
+      <span id="location-name-display">—</span>
+    </button>
+    <button id="btn-open-settings" class="icon-btn" aria-label="Settings">⚙️</button>
+  </header>
+
+  <!-- Search / switch location panel (hidden by default) -->
+  <section id="location-panel" class="panel hidden">
+    <input id="location-search" type="text" placeholder="Search for a place…" autocomplete="off" />
+    <div id="location-results" class="search-results"></div>
+    <div id="saved-locations" class="saved-locations"></div>
+    <button id="btn-close-panel" class="text-btn">Close</button>
+  </section>
+
+  <!-- Settings panel (hidden by default) -->
+  <section id="settings-panel" class="panel hidden">
+    <div class="settings-row">
+      <span class="settings-label">Units</span>
+      <div class="unit-toggle">
+        <button id="unit-metric" class="unit-btn" data-unit="metric">Metric</button>
+        <button id="unit-imperial" class="unit-btn" data-unit="imperial">Imperial</button>
+      </div>
+    </div>
+    <div class="settings-note">°C, km/h, km, hPa, m vs °F, mph, mi, inHg, ft</div>
+    <button id="btn-close-settings" class="text-btn">Close</button>
+  </section>
+
+  <main id="content" class="hidden">
+
+    <!-- Current conditions -->
+    <section class="current-card">
+      <div class="place-name" id="place-name">—</div>
+      <div class="coords" id="place-coords">—</div>
+      <div class="condition-line">
+        <span id="condition-icon" class="condition-icon">⛅</span>
+        <span id="condition-text">—</span>
+      </div>
+      <div class="current-temp" id="current-temp">—°</div>
+      <div class="current-temp-alt" id="current-temp-alt">—°</div>
+      <div class="quick-stats">
+        <span title="Precip chance">🌧️ <span id="qs-precip">—%</span></span>
+        <span title="Cloud cover">☁️ <span id="qs-cloud">—%</span></span>
+        <span title="Humidity">〰️ <span id="qs-humidity">—%</span></span>
+        <span title="Wind">🎐 <span id="qs-wind">—</span></span>
+        <span title="AQI">▦ <span id="qs-aqi">—</span></span>
+      </div>
+    </section>
+
+    <!-- Hourly forecast -->
+    <section class="card">
+      <div class="card-title">⏱ Hourly Forecast</div>
+      <div id="hourly-scroll" class="hourly-scroll"></div>
+    </section>
+
+    <!-- Tide -->
+    <section class="card" id="tide-card">
+      <div class="card-title">🌊 Tide</div>
+      <div id="tide-content">Loading…</div>
+    </section>
+
+    <!-- 7-day forecast -->
+    <section class="card">
+      <div class="card-title">📅 7-Day Forecast</div>
+      <div id="daily-list" class="daily-list"></div>
+    </section>
+
+    <!-- Details grid -->
+    <section class="card details-card" id="details-card">
+      <!-- rows injected by app.js -->
+    </section>
+
+    <!-- Moon phase -->
+    <section class="card" id="moon-card">
+      <div class="card-title">🌙 Moon</div>
+      <div id="moon-content">Loading…</div>
+    </section>
+
+    <footer class="footer-note">
+      Weather: Open‑Meteo · Tide: Open‑Meteo Marine (model estimate) · Moon: calculated locally
+      <div id="last-updated"></div>
+    </footer>
+
+  </main>
+
+  <div id="loading" class="loading">Loading weather…</div>
+  <div id="error-banner" class="error-banner hidden"></div>
+
+</div>
+
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

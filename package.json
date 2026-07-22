@@ -1,0 +1,13 @@
+{
+  "name": "pocket-weather",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "encrypt": "node build.mjs && npx pagecrypt dist/index.html dist/index.html"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.0"
+  }
+}
