@@ -6,12 +6,6 @@
 //   tide-station prediction — good for "is it roughly high or low water"
 //   and a rough curve, not for navigation.
 //   Docs: https://open-meteo.com/en/docs/marine-weather-api
-//
-// Optional upgrade: Stormglass tide/extremes endpoint gives real high/low
-//   tide timestamps from the nearest tide station, if you set
-//   CONFIG.STORMGLASS_API_KEY. Free tier = 10 requests/day TOTAL, so this
-//   is only fetched once per location per day (see app.js caching).
-//   Docs: https://docs.stormglass.io/#/tide
 // ---------------------------------------------------------------------------
 
 import { CONFIG } from "./config.js";
