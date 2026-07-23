@@ -31,7 +31,7 @@ async function main() {
   );
 
   await writeFile("dist/index.html", html, "utf8");
-  console.log("Built dist/index.html (self-contained, ready for pagecrypt).");
+  console.log("Built dist/index.html (self-contained single-file bundle).");
 }
 
 main().catch((err) => {

@@ -8,8 +8,6 @@
 //   Docs: https://open-meteo.com/en/docs/marine-weather-api
 // ---------------------------------------------------------------------------
 
-import { CONFIG } from "./config.js";
-
 export async function fetchMarineSeaLevel(lat, lon) {
   const params = new URLSearchParams({
     latitude: lat,
@@ -54,37 +52,5 @@ export function deriveTideSummary(marineData) {
     currentLevel: levels[nowIdx],
     trend,
     extremes: extremes.slice(0, 4),
-    source: "estimate",
-  };
-}
-
-/**
- * Optional: real tide station extremes via Stormglass, only called if a key
- * is configured. Caller is responsible for not calling this more than
- * necessary given the 10/day free-tier cap.
- */
-export async function fetchStormglassExtremes(lat, lon) {
-  if (!CONFIG.STORMGLASS_API_KEY) return null;
-  const start = new Date();
-  const end = new Date(Date.now() + 2 * 86400000);
-  const params = new URLSearchParams({
-    lat,
-    lng: lon,
-    start: start.toISOString(),
-    end: end.toISOString(),
-  });
-  const res = await fetch(`https://api.stormglass.io/v2/tide/extremes/point?${params}`, {
-    headers: { Authorization: CONFIG.STORMGLASS_API_KEY },
-  });
-  if (!res.ok) throw new Error(`Stormglass fetch failed (${res.status})`);
-  const data = await res.json();
-  return {
-    extremes: (data.data ?? []).map((e) => ({
-      time: e.time,
-      type: e.type === "high" ? "High" : "Low",
-      level: e.height,
-    })),
-    station: data.meta?.station?.name,
-    source: "station",
   };
 }

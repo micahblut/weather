@@ -19,6 +19,14 @@
 
 <div id="app">
 
+  <!-- Pull-to-refresh indicator; lives outside #pull-wrapper so it isn't
+       affected by the wrapper's own drag transform. -->
+  <div id="pull-refresh" class="pull-refresh" aria-hidden="true">
+    <span class="pull-refresh-icon">↻</span>
+  </div>
+
+  <div id="pull-wrapper">
+
   <!-- Location switcher -->
   <header class="location-bar">
     <button id="btn-locate" class="icon-btn" aria-label="Use current location">📍</button>
@@ -105,6 +113,8 @@
     </footer>
 
   </main>
+
+  </div>
 
   <div id="loading" class="loading">Loading weather…</div>
   <div id="error-banner" class="error-banner hidden"></div>

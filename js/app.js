@@ -1,7 +1,7 @@
 import { CONFIG } from "./config.js";
 import { searchPlaces, reverseGeocode } from "./geocode.js";
 import { fetchWeather, fetchAirQuality, describeWeatherCode } from "./weather.js";
-import { fetchMarineSeaLevel, deriveTideSummary, fetchStormglassExtremes } from "./tide.js";
+import { fetchMarineSeaLevel, deriveTideSummary } from "./tide.js";
 import { getMoonPhase } from "./moon.js";
 
 const LOCATIONS_KEY = "weatherapp.locations.v1";
@@ -250,11 +250,7 @@ function renderTide(summary) {
       summary.currentLevel != null ? ` · ${fmtTideLevel(summary.currentLevel)}` : ""
     }</div>
     <div class="tide-extremes">${rows || "<em>No extremes found in window.</em>"}</div>
-    <div class="tide-note">${
-      summary.source === "station"
-        ? `Station: ${summary.station ?? "nearest tide gauge"}`
-        : "Modelled estimate (Open‑Meteo Marine), not a calibrated tide-station prediction — treat as approximate."
-    }</div>
+    <div class="tide-note">Modelled estimate (Open‑Meteo Marine), not a calibrated tide-station prediction — treat as approximate.</div>
   `;
 }
 
@@ -285,9 +281,11 @@ function renderAll() {
 // Orchestration
 // ---------------------------------------------------------------------------
 
-async function loadLocationData(loc) {
-  el("loading").classList.remove("hidden");
-  el("content").classList.add("hidden");
+async function loadLocationData(loc, { silent = false } = {}) {
+  if (!silent) {
+    el("loading").classList.remove("hidden");
+    el("content").classList.add("hidden");
+  }
   hideError();
   updateLocationNameDisplay();
 
@@ -298,16 +296,7 @@ async function loadLocationData(loc) {
       fetchMarineSeaLevel(loc.lat, loc.lon).catch(() => null),
     ]);
 
-    // Tide: prefer Stormglass station extremes if configured, else estimate.
-    let tideSummary = marine ? deriveTideSummary(marine) : null;
-    if (CONFIG.STORMGLASS_API_KEY) {
-      try {
-        const sg = await fetchStormglassExtremes(loc.lat, loc.lon);
-        if (sg) tideSummary = sg;
-      } catch (e) {
-        console.warn("Stormglass tide fetch failed, falling back to estimate", e);
-      }
-    }
+    const tideSummary = marine ? deriveTideSummary(marine) : null;
 
     lastLoc = loc;
     lastWeather = weather;
@@ -326,7 +315,7 @@ async function loadLocationData(loc) {
     console.error(err);
     showError("Couldn't load weather data. Check your connection and try again.");
   } finally {
-    el("loading").classList.add("hidden");
+    if (!silent) el("loading").classList.add("hidden");
   }
 }
 
@@ -453,6 +442,88 @@ function wireSettingsPanel() {
 }
 
 // ---------------------------------------------------------------------------
+// Pull-to-refresh — hand-rolled since the browser's native overscroll
+// bounce is disabled (see `overscroll-behavior-y: none` in style.css) and
+// installed/standalone PWAs don't get a pull-to-reload gesture for free.
+// ---------------------------------------------------------------------------
+
+function wirePullToRefresh() {
+  const wrapper = el("pull-wrapper");
+  const indicator = el("pull-refresh");
+  const icon = indicator.querySelector(".pull-refresh-icon");
+
+  const THRESHOLD = 70; // px of (resisted) pull distance needed to trigger a refresh
+  const MAX_PULL = 110;
+
+  let startY = null;
+  let pulling = false;
+  let refreshing = false;
+  let currentPull = 0;
+
+  function setPull(px) {
+    currentPull = px;
+    wrapper.style.transform = px > 0 ? `translateY(${px}px)` : "";
+    const progress = Math.min(px / THRESHOLD, 1);
+    indicator.style.opacity = progress;
+    indicator.style.transform = `translateX(-50%) scale(${0.5 + progress * 0.5})`;
+    icon.style.transform = `rotate(${progress * 180}deg)`;
+  }
+
+  function reset() {
+    wrapper.classList.add("pull-reset");
+    setPull(0);
+    indicator.classList.remove("spinning");
+    setTimeout(() => wrapper.classList.remove("pull-reset"), 250);
+  }
+
+  window.addEventListener(
+    "touchstart",
+    (e) => {
+      if (refreshing || window.scrollY > 0) return;
+      startY = e.touches[0].clientY;
+      pulling = true;
+    },
+    { passive: true }
+  );
+
+  window.addEventListener(
+    "touchmove",
+    (e) => {
+      if (!pulling || startY == null) return;
+      const delta = e.touches[0].clientY - startY;
+      if (delta <= 0 || window.scrollY > 0) {
+        pulling = false;
+        setPull(0);
+        return;
+      }
+      e.preventDefault(); // only for the downward-at-top gesture, so normal scrolling is untouched
+      setPull(Math.min(MAX_PULL, delta * 0.5)); // resistance curve
+    },
+    { passive: false }
+  );
+
+  window.addEventListener("touchend", async () => {
+    if (!pulling) return;
+    pulling = false;
+    startY = null;
+
+    if (currentPull >= THRESHOLD && !refreshing) {
+      refreshing = true;
+      indicator.classList.add("spinning");
+      setPull(THRESHOLD);
+      try {
+        await loadLocationData(currentLocation(), { silent: true });
+      } finally {
+        refreshing = false;
+        reset();
+      }
+    } else {
+      reset();
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 
@@ -460,6 +531,7 @@ function init() {
   updateLocationNameDisplay();
   wireLocationPanel();
   wireSettingsPanel();
+  wirePullToRefresh();
 
   el("btn-locate").addEventListener("click", useDeviceLocation);
 
