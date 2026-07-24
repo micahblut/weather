@@ -7,6 +7,7 @@ import { getMoonPhase } from "./moon.js";
 const LOCATIONS_KEY = "weatherapp.locations.v1";
 const LAST_SELECTED_KEY = "weatherapp.lastSelected.v1";
 const UNIT_KEY = "weatherapp.tempUnit.v1";
+const MAX_SEARCHED_LOCATIONS = 3;
 
 const el = (id) => document.getElementById(id);
 
@@ -69,8 +70,23 @@ function saveLocations(locs) {
   localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locs));
 }
 
+function isSearchedLocation(loc) {
+  return loc.id !== "default" && loc.id !== "device-current";
+}
+
+function limitSearchedLocations(locs) {
+  const excess = locs.filter(isSearchedLocation).slice(0, -MAX_SEARCHED_LOCATIONS);
+  for (const loc of excess) locs.splice(locs.indexOf(loc), 1);
+  return excess.length > 0;
+}
+
 let locations = loadLocations();
+if (limitSearchedLocations(locations)) saveLocations(locations);
 let currentId = localStorage.getItem(LAST_SELECTED_KEY) || locations[0].id;
+if (!locations.some((loc) => loc.id === currentId)) {
+  currentId = locations[0].id;
+  localStorage.setItem(LAST_SELECTED_KEY, currentId);
+}
 
 // Cache of the last successful fetch, so toggling units re-renders instantly
 // without hitting the network again.
@@ -95,10 +111,6 @@ const NIGHT_SKY = [
 
 function currentLocation() {
   return locations.find((l) => l.id === currentId) ?? locations[0];
-}
-
-function updateLocationNameDisplay() {
-  el("location-name-display").textContent = currentLocation()?.name ?? "—";
 }
 
 function renderSavedLocations() {
@@ -415,8 +427,6 @@ async function loadLocationData(loc, { silent = false } = {}) {
     el("content").classList.add("hidden");
   }
   hideError();
-  updateLocationNameDisplay();
-
   try {
     const [weather, airQuality, marine] = await Promise.all([
       fetchWeather(loc.lat, loc.lon),
@@ -459,7 +469,6 @@ function hideError() {
 function selectLocation(id) {
   currentId = id;
   localStorage.setItem(LAST_SELECTED_KEY, id);
-  updateLocationNameDisplay();
   loadLocationData(currentLocation());
 }
 
@@ -530,6 +539,7 @@ function wireLocationPanel() {
             const id = `${m.lat.toFixed(3)},${m.lon.toFixed(3)}`;
             if (!locations.find((l) => l.id === id)) {
               locations.push({ id, name: m.name, lat: m.lat, lon: m.lon });
+              limitSearchedLocations(locations);
               saveLocations(locations);
             }
             panel.classList.add("hidden");
@@ -667,7 +677,6 @@ function wirePullToRefresh() {
 // ---------------------------------------------------------------------------
 
 function init() {
-  updateLocationNameDisplay();
   wireLocationPanel();
   wireSettingsPanel();
   wirePullToRefresh();
