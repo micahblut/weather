@@ -264,8 +264,16 @@ function positionMoonOnArc(hour) {
   const appBox = app.getBoundingClientRect();
   const quickStatsBox = document.querySelector(".quick-stats")?.getBoundingClientRect();
   const headerBox = document.querySelector(".location-bar")?.getBoundingClientRect();
+  const locationBox = document.querySelector(".place-name")?.getBoundingClientRect();
   const lowY = quickStatsBox ? quickStatsBox.top - appBox.top + quickStatsBox.height / 2 : 250;
-  const peakY = headerBox ? headerBox.bottom - appBox.top + 20 : 76;
+  const moonRadius = moon.offsetHeight / 2 || 19;
+  // Keep the moon's highest point just below the place name. It may overlap
+  // the coordinates, but never the selected location itself.
+  const peakY = locationBox
+    ? locationBox.bottom - appBox.top + moonRadius + 6
+    : headerBox
+      ? headerBox.bottom - appBox.top + moonRadius + 6
+      : 76;
   const arcHeight = Math.max(0, lowY - peakY);
   const x = -20 + nightProgress * (appBox.width + 40);
   const y = lowY - arcHeight * 4 * nightProgress * (1 - nightProgress);
@@ -497,8 +505,12 @@ function wireLocationPanel() {
       renderSavedLocations();
       input.focus();
     }
+    requestAnimationFrame(updateDisplayTimePresentation);
   });
-  el("btn-close-panel").addEventListener("click", () => panel.classList.add("hidden"));
+  el("btn-close-panel").addEventListener("click", () => {
+    panel.classList.add("hidden");
+    requestAnimationFrame(updateDisplayTimePresentation);
+  });
 
   input.addEventListener("input", () => {
     clearTimeout(searchDebounce);
@@ -547,8 +559,12 @@ function wireSettingsPanel() {
   el("btn-open-settings").addEventListener("click", () => {
     el("location-panel").classList.add("hidden");
     panel.classList.toggle("hidden");
+    requestAnimationFrame(updateDisplayTimePresentation);
   });
-  el("btn-close-settings").addEventListener("click", () => panel.classList.add("hidden"));
+  el("btn-close-settings").addEventListener("click", () => {
+    panel.classList.add("hidden");
+    requestAnimationFrame(updateDisplayTimePresentation);
+  });
 
   for (const btn of [el("unit-metric"), el("unit-imperial")]) {
     btn.addEventListener("click", () => {

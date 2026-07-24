@@ -259,7 +259,7 @@ html, body {
 /* Current conditions card */
 .current-card {
   text-align: center;
-  padding: 22px 10px 18px;
+  padding: 14px 10px 18px;
 }
 
 .place-name { font-size: 26px; font-weight: 700; }
