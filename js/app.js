@@ -491,6 +491,9 @@ function wireLocationPanel() {
     el("settings-panel").classList.add("hidden");
     panel.classList.toggle("hidden");
     if (!panel.classList.contains("hidden")) {
+      // Keep this as a search field, rather than echoing the selected location.
+      input.value = "";
+      results.innerHTML = "";
       renderSavedLocations();
       input.focus();
     }
