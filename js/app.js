@@ -7,6 +7,7 @@ import { getMoonPhase } from "./moon.js";
 const LOCATIONS_KEY = "weatherapp.locations.v1";
 const LAST_SELECTED_KEY = "weatherapp.lastSelected.v1";
 const UNIT_KEY = "weatherapp.tempUnit.v1";
+const MAX_SEARCHED_LOCATIONS = 3;
 
 const el = (id) => document.getElementById(id);
 
@@ -69,8 +70,23 @@ function saveLocations(locs) {
   localStorage.setItem(LOCATIONS_KEY, JSON.stringify(locs));
 }
 
+function isSearchedLocation(loc) {
+  return loc.id !== "default" && loc.id !== "device-current";
+}
+
+function limitSearchedLocations(locs) {
+  const excess = locs.filter(isSearchedLocation).slice(0, -MAX_SEARCHED_LOCATIONS);
+  for (const loc of excess) locs.splice(locs.indexOf(loc), 1);
+  return excess.length > 0;
+}
+
 let locations = loadLocations();
+if (limitSearchedLocations(locations)) saveLocations(locations);
 let currentId = localStorage.getItem(LAST_SELECTED_KEY) || locations[0].id;
+if (!locations.some((loc) => loc.id === currentId)) {
+  currentId = locations[0].id;
+  localStorage.setItem(LAST_SELECTED_KEY, currentId);
+}
 
 // Cache of the last successful fetch, so toggling units re-renders instantly
 // without hitting the network again.
@@ -97,19 +113,19 @@ function currentLocation() {
   return locations.find((l) => l.id === currentId) ?? locations[0];
 }
 
-function updateLocationNameDisplay() {
-  el("location-name-display").textContent = currentLocation()?.name ?? "—";
-}
-
 function renderSavedLocations() {
   const container = el("saved-locations");
   container.innerHTML = "";
   for (const loc of locations) {
-    const row = document.createElement("div");
+    const row = document.createElement("button");
+    row.type = "button";
     row.className = "saved-location-item" + (loc.id === currentId ? " active" : "");
     row.textContent = loc.name;
     row.addEventListener("click", () => {
       el("location-panel").classList.add("hidden");
+      el("btn-open-location").setAttribute("aria-expanded", "false");
+      el("btn-open-location").focus();
+      requestAnimationFrame(updateDisplayTimePresentation);
       selectLocation(loc.id);
     });
     container.appendChild(row);
@@ -168,7 +184,7 @@ function renderHourly(weather, { resetDisplayTime = true } = {}) {
     item.setAttribute("aria-label", `${i === startIdx ? "Now" : fmtTime(time[i])}, ${desc.text}, ${fmtTemp(temperature_2m[i])}`);
     item.innerHTML = `
       <div class="h-time">${i === startIdx ? "Now" : fmtTime(time[i])}</div>
-      <div class="h-icon">${desc.icon}</div>
+      <div class="h-icon" aria-hidden="true">${desc.icon}</div>
       <div class="h-temp">${fmtTemp(temperature_2m[i])}</div>
     `;
     item.addEventListener("click", () => {
@@ -262,10 +278,20 @@ function positionMoonOnArc(hour) {
 
   const app = el("app");
   const appBox = app.getBoundingClientRect();
-  const quickStatsBox = document.querySelector(".quick-stats")?.getBoundingClientRect();
+  const temperatureBox = el("current-temp")?.getBoundingClientRect();
   const headerBox = document.querySelector(".location-bar")?.getBoundingClientRect();
-  const lowY = quickStatsBox ? quickStatsBox.top - appBox.top + quickStatsBox.height / 2 : 250;
-  const peakY = headerBox ? headerBox.bottom - appBox.top + 20 : 76;
+  const locationBox = document.querySelector(".place-name")?.getBoundingClientRect();
+  const lowY = temperatureBox
+    ? temperatureBox.top - appBox.top + temperatureBox.height / 2
+    : 250;
+  const moonRadius = moon.offsetHeight / 2 || 19;
+  // Keep the moon's highest point just below the place name. It may overlap
+  // the coordinates, but never the selected location itself.
+  const peakY = locationBox
+    ? locationBox.bottom - appBox.top + moonRadius + 6
+    : headerBox
+      ? headerBox.bottom - appBox.top + moonRadius + 6
+      : 76;
   const arcHeight = Math.max(0, lowY - peakY);
   const x = -20 + nightProgress * (appBox.width + 40);
   const y = lowY - arcHeight * 4 * nightProgress * (1 - nightProgress);
@@ -299,7 +325,7 @@ function renderDaily(weather) {
         <span class="daily-day">${i === 0 ? "Today" : fmtDay(time[i])}</span>
         <span class="daily-date">${fmtDate(time[i])}</span>
       </div>
-      <div class="daily-icon">${desc.icon}</div>
+      <div class="daily-icon" role="img" aria-label="${desc.text}">${desc.icon}</div>
       <div class="temp-bar-track">
         <div class="temp-bar-fill" style="left:${leftPct}%;width:${widthPct}%"></div>
       </div>
@@ -315,7 +341,7 @@ function renderDaily(weather) {
 function detailRow(emoji, label, value, sub = "") {
   return `
     <div class="detail-row">
-      <div class="detail-label"><span class="emoji">${emoji}</span>${label}</div>
+      <div class="detail-label"><span class="emoji" aria-hidden="true">${emoji}</span>${label}</div>
       <div class="detail-value">${value}${sub ? `<span class="sub">${sub}</span>` : ""}</div>
     </div>
   `;
@@ -405,8 +431,6 @@ async function loadLocationData(loc, { silent = false } = {}) {
     el("content").classList.add("hidden");
   }
   hideError();
-  updateLocationNameDisplay();
-
   try {
     const [weather, airQuality, marine] = await Promise.all([
       fetchWeather(loc.lat, loc.lon),
@@ -449,7 +473,6 @@ function hideError() {
 function selectLocation(id) {
   currentId = id;
   localStorage.setItem(LAST_SELECTED_KEY, id);
-  updateLocationNameDisplay();
   loadLocationData(currentLocation());
 }
 
@@ -486,16 +509,33 @@ function wireLocationPanel() {
   const panel = el("location-panel");
   const input = el("location-search");
   const results = el("location-results");
+  const trigger = el("btn-open-location");
 
-  el("btn-open-location").addEventListener("click", () => {
+  function closePanel({ restoreFocus = true } = {}) {
+    panel.classList.add("hidden");
+    trigger.setAttribute("aria-expanded", "false");
+    if (restoreFocus) trigger.focus();
+    requestAnimationFrame(updateDisplayTimePresentation);
+  }
+
+  trigger.addEventListener("click", () => {
     el("settings-panel").classList.add("hidden");
-    panel.classList.toggle("hidden");
-    if (!panel.classList.contains("hidden")) {
+    el("btn-open-settings").setAttribute("aria-expanded", "false");
+    const opening = panel.classList.contains("hidden");
+    panel.classList.toggle("hidden", !opening);
+    trigger.setAttribute("aria-expanded", String(opening));
+    if (opening) {
+      // Keep this as a search field, rather than echoing the selected location.
+      input.value = "";
+      results.innerHTML = "";
       renderSavedLocations();
       input.focus();
+    } else {
+      trigger.focus();
     }
+    requestAnimationFrame(updateDisplayTimePresentation);
   });
-  el("btn-close-panel").addEventListener("click", () => panel.classList.add("hidden"));
+  el("btn-close-panel").addEventListener("click", () => closePanel());
 
   input.addEventListener("input", () => {
     clearTimeout(searchDebounce);
@@ -506,16 +546,18 @@ function wireLocationPanel() {
       try {
         const matches = await searchPlaces(q);
         for (const m of matches) {
-          const row = document.createElement("div");
+          const row = document.createElement("button");
+          row.type = "button";
           row.className = "search-result-item";
           row.textContent = m.label;
           row.addEventListener("click", () => {
             const id = `${m.lat.toFixed(3)},${m.lon.toFixed(3)}`;
             if (!locations.find((l) => l.id === id)) {
               locations.push({ id, name: m.name, lat: m.lat, lon: m.lon });
+              limitSearchedLocations(locations);
               saveLocations(locations);
             }
-            panel.classList.add("hidden");
+            closePanel();
             input.value = "";
             results.innerHTML = "";
             selectLocation(id);
@@ -540,12 +582,23 @@ function updateUnitButtons() {
 
 function wireSettingsPanel() {
   const panel = el("settings-panel");
+  const trigger = el("btn-open-settings");
 
-  el("btn-open-settings").addEventListener("click", () => {
+  trigger.addEventListener("click", () => {
     el("location-panel").classList.add("hidden");
-    panel.classList.toggle("hidden");
+    el("btn-open-location").setAttribute("aria-expanded", "false");
+    const opening = panel.classList.contains("hidden");
+    panel.classList.toggle("hidden", !opening);
+    trigger.setAttribute("aria-expanded", String(opening));
+    if (!opening) trigger.focus();
+    requestAnimationFrame(updateDisplayTimePresentation);
   });
-  el("btn-close-settings").addEventListener("click", () => panel.classList.add("hidden"));
+  el("btn-close-settings").addEventListener("click", () => {
+    panel.classList.add("hidden");
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.focus();
+    requestAnimationFrame(updateDisplayTimePresentation);
+  });
 
   for (const btn of [el("unit-metric"), el("unit-imperial")]) {
     btn.addEventListener("click", () => {
@@ -646,7 +699,6 @@ function wirePullToRefresh() {
 // ---------------------------------------------------------------------------
 
 function init() {
-  updateLocationNameDisplay();
   wireLocationPanel();
   wireSettingsPanel();
   wirePullToRefresh();
