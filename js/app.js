@@ -117,11 +117,15 @@ function renderSavedLocations() {
   const container = el("saved-locations");
   container.innerHTML = "";
   for (const loc of locations) {
-    const row = document.createElement("div");
+    const row = document.createElement("button");
+    row.type = "button";
     row.className = "saved-location-item" + (loc.id === currentId ? " active" : "");
     row.textContent = loc.name;
     row.addEventListener("click", () => {
       el("location-panel").classList.add("hidden");
+      el("btn-open-location").setAttribute("aria-expanded", "false");
+      el("btn-open-location").focus();
+      requestAnimationFrame(updateDisplayTimePresentation);
       selectLocation(loc.id);
     });
     container.appendChild(row);
@@ -180,7 +184,7 @@ function renderHourly(weather, { resetDisplayTime = true } = {}) {
     item.setAttribute("aria-label", `${i === startIdx ? "Now" : fmtTime(time[i])}, ${desc.text}, ${fmtTemp(temperature_2m[i])}`);
     item.innerHTML = `
       <div class="h-time">${i === startIdx ? "Now" : fmtTime(time[i])}</div>
-      <div class="h-icon">${desc.icon}</div>
+      <div class="h-icon" aria-hidden="true">${desc.icon}</div>
       <div class="h-temp">${fmtTemp(temperature_2m[i])}</div>
     `;
     item.addEventListener("click", () => {
@@ -321,7 +325,7 @@ function renderDaily(weather) {
         <span class="daily-day">${i === 0 ? "Today" : fmtDay(time[i])}</span>
         <span class="daily-date">${fmtDate(time[i])}</span>
       </div>
-      <div class="daily-icon">${desc.icon}</div>
+      <div class="daily-icon" role="img" aria-label="${desc.text}">${desc.icon}</div>
       <div class="temp-bar-track">
         <div class="temp-bar-fill" style="left:${leftPct}%;width:${widthPct}%"></div>
       </div>
@@ -337,7 +341,7 @@ function renderDaily(weather) {
 function detailRow(emoji, label, value, sub = "") {
   return `
     <div class="detail-row">
-      <div class="detail-label"><span class="emoji">${emoji}</span>${label}</div>
+      <div class="detail-label"><span class="emoji" aria-hidden="true">${emoji}</span>${label}</div>
       <div class="detail-value">${value}${sub ? `<span class="sub">${sub}</span>` : ""}</div>
     </div>
   `;
@@ -505,23 +509,33 @@ function wireLocationPanel() {
   const panel = el("location-panel");
   const input = el("location-search");
   const results = el("location-results");
+  const trigger = el("btn-open-location");
 
-  el("btn-open-location").addEventListener("click", () => {
+  function closePanel({ restoreFocus = true } = {}) {
+    panel.classList.add("hidden");
+    trigger.setAttribute("aria-expanded", "false");
+    if (restoreFocus) trigger.focus();
+    requestAnimationFrame(updateDisplayTimePresentation);
+  }
+
+  trigger.addEventListener("click", () => {
     el("settings-panel").classList.add("hidden");
-    panel.classList.toggle("hidden");
-    if (!panel.classList.contains("hidden")) {
+    el("btn-open-settings").setAttribute("aria-expanded", "false");
+    const opening = panel.classList.contains("hidden");
+    panel.classList.toggle("hidden", !opening);
+    trigger.setAttribute("aria-expanded", String(opening));
+    if (opening) {
       // Keep this as a search field, rather than echoing the selected location.
       input.value = "";
       results.innerHTML = "";
       renderSavedLocations();
       input.focus();
+    } else {
+      trigger.focus();
     }
     requestAnimationFrame(updateDisplayTimePresentation);
   });
-  el("btn-close-panel").addEventListener("click", () => {
-    panel.classList.add("hidden");
-    requestAnimationFrame(updateDisplayTimePresentation);
-  });
+  el("btn-close-panel").addEventListener("click", () => closePanel());
 
   input.addEventListener("input", () => {
     clearTimeout(searchDebounce);
@@ -532,7 +546,8 @@ function wireLocationPanel() {
       try {
         const matches = await searchPlaces(q);
         for (const m of matches) {
-          const row = document.createElement("div");
+          const row = document.createElement("button");
+          row.type = "button";
           row.className = "search-result-item";
           row.textContent = m.label;
           row.addEventListener("click", () => {
@@ -542,7 +557,7 @@ function wireLocationPanel() {
               limitSearchedLocations(locations);
               saveLocations(locations);
             }
-            panel.classList.add("hidden");
+            closePanel();
             input.value = "";
             results.innerHTML = "";
             selectLocation(id);
@@ -567,14 +582,21 @@ function updateUnitButtons() {
 
 function wireSettingsPanel() {
   const panel = el("settings-panel");
+  const trigger = el("btn-open-settings");
 
-  el("btn-open-settings").addEventListener("click", () => {
+  trigger.addEventListener("click", () => {
     el("location-panel").classList.add("hidden");
-    panel.classList.toggle("hidden");
+    el("btn-open-location").setAttribute("aria-expanded", "false");
+    const opening = panel.classList.contains("hidden");
+    panel.classList.toggle("hidden", !opening);
+    trigger.setAttribute("aria-expanded", String(opening));
+    if (!opening) trigger.focus();
     requestAnimationFrame(updateDisplayTimePresentation);
   });
   el("btn-close-settings").addEventListener("click", () => {
     panel.classList.add("hidden");
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.focus();
     requestAnimationFrame(updateDisplayTimePresentation);
   });
 

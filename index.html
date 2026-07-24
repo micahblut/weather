@@ -34,15 +34,15 @@
   <!-- Location switcher -->
   <header class="location-bar">
     <button id="btn-locate" class="icon-btn" aria-label="Use current location">📍</button>
-    <button id="btn-open-location" class="location-name-btn" aria-label="Search locations">
+    <button id="btn-open-location" class="location-name-btn" aria-label="Search locations" aria-controls="location-panel" aria-expanded="false">
       <span id="location-name-display"></span>
     </button>
-    <button id="btn-open-settings" class="icon-btn" aria-label="Settings">⚙️</button>
+    <button id="btn-open-settings" class="icon-btn" aria-label="Settings" aria-controls="settings-panel" aria-expanded="false">⚙️</button>
   </header>
 
   <!-- Search / switch location panel (hidden by default) -->
   <section id="location-panel" class="panel hidden">
-    <input id="location-search" type="text" placeholder="Search for a place…" autocomplete="off" />
+    <input id="location-search" type="text" placeholder="Search for a place…" aria-label="Search for a place" autocomplete="off" />
     <div id="location-results" class="search-results"></div>
     <div id="saved-locations" class="saved-locations"></div>
     <button id="btn-close-panel" class="text-btn">Close</button>
@@ -68,17 +68,17 @@
       <div class="place-name" id="place-name">—</div>
       <div class="coords" id="place-coords">—</div>
       <div class="condition-line">
-        <span id="condition-icon" class="condition-icon">⛅</span>
+        <span id="condition-icon" class="condition-icon" aria-hidden="true">⛅</span>
         <span id="condition-text">—</span>
       </div>
       <div class="current-temp" id="current-temp">—°</div>
       <div class="current-temp-alt" id="current-temp-alt">—°</div>
       <div class="quick-stats">
-        <span title="Precip chance">🌧️ <span id="qs-precip">—%</span></span>
-        <span title="Cloud cover">☁️ <span id="qs-cloud">—%</span></span>
-        <span title="Humidity">〰️ <span id="qs-humidity">—%</span></span>
-        <span title="Wind">🎐 <span id="qs-wind">—</span></span>
-        <span title="AQI">▦ <span id="qs-aqi">—</span></span>
+        <span title="Precip chance"><span aria-hidden="true">🌧️</span> <span class="sr-only">Precipitation chance: </span><span id="qs-precip">—%</span></span>
+        <span title="Cloud cover"><span aria-hidden="true">☁️</span> <span class="sr-only">Cloud cover: </span><span id="qs-cloud">—%</span></span>
+        <span title="Humidity"><span aria-hidden="true">〰️</span> <span class="sr-only">Humidity: </span><span id="qs-humidity">—%</span></span>
+        <span title="Wind"><span aria-hidden="true">🎐</span> <span class="sr-only">Wind: </span><span id="qs-wind">—</span></span>
+        <span title="AQI"><span aria-hidden="true">▦</span> <span class="sr-only">Air quality index: </span><span id="qs-aqi">—</span></span>
       </div>
     </section>
 
