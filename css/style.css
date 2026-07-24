@@ -9,6 +9,10 @@
   --accent-lo: #4da6ff;
   --radius: 22px;
   --gap: 14px;
+  --sky-top: #7fae7a;
+  --sky-upper: #5b8fb0;
+  --sky-lower: #3f6fa8;
+  --sky-bottom: #35548f;
   font-size: 16px;
 }
 
@@ -20,7 +24,13 @@ html, body {
   height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
   color: var(--text);
-  background: linear-gradient(180deg, #7fae7a 0%, #5b8fb0 35%, #3f6fa8 65%, #35548f 100%);
+  background: linear-gradient(
+    180deg,
+    var(--sky-top) 0%,
+    var(--sky-upper) 35%,
+    var(--sky-lower) 65%,
+    var(--sky-bottom) 100%
+  );
   background-attachment: fixed;
   overscroll-behavior-y: none;
 }
@@ -33,7 +43,26 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
+  position: relative;
 }
+
+.moon-arc {
+  position: absolute;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin: -19px;
+  font-size: 30px;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.28));
+  transition: opacity 180ms ease;
+}
+
+.moon-arc.visible { opacity: 1; }
 
 .hidden { display: none !important; }
 
@@ -291,6 +320,8 @@ html, body {
   overflow-x: auto;
   gap: 18px;
   padding-bottom: 4px;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
   scrollbar-width: none;
 }
 .hourly-scroll::-webkit-scrollbar { display: none; }
@@ -300,7 +331,17 @@ html, body {
   text-align: center;
   font-size: 13px;
   min-width: 46px;
+  padding: 4px 3px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
+.hour-item.active { background: rgba(255, 255, 255, 0.13); }
+.hour-item:focus-visible { outline: 2px solid var(--accent-lo); outline-offset: 2px; }
 .hour-item .h-time { color: var(--text-dim); margin-bottom: 6px; }
 .hour-item .h-icon { font-size: 20px; margin-bottom: 6px; }
 .hour-item .h-temp { font-weight: 600; }

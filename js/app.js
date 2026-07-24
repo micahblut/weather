@@ -78,6 +78,20 @@ let lastLoc = null;
 let lastWeather = null;
 let lastAirQuality = null;
 let lastTideSummary = null;
+let displayTime = null;
+
+const DAY_SKY = [
+  [127, 174, 122],
+  [91, 143, 176],
+  [63, 111, 168],
+  [53, 84, 143],
+];
+const NIGHT_SKY = [
+  [20, 35, 67],
+  [22, 42, 83],
+  [19, 34, 73],
+  [13, 23, 55],
+];
 
 function currentLocation() {
   return locations.find((l) => l.id === currentId) ?? locations[0];
@@ -136,7 +150,7 @@ function renderCurrent(loc, weather, airQuality) {
   el("qs-aqi").textContent = airQuality?.current?.us_aqi ?? "—";
 }
 
-function renderHourly(weather) {
+function renderHourly(weather, { resetDisplayTime = true } = {}) {
   const container = el("hourly-scroll");
   container.innerHTML = "";
   const { time, temperature_2m, weather_code } = weather.hourly;
@@ -147,15 +161,119 @@ function renderHourly(weather) {
 
   for (let i = startIdx; i < Math.min(startIdx + 24, time.length); i++) {
     const desc = describeWeatherCode(weather_code[i]);
-    const item = document.createElement("div");
+    const item = document.createElement("button");
+    item.type = "button";
     item.className = "hour-item";
+    item.dataset.time = time[i];
+    item.setAttribute("aria-label", `${i === startIdx ? "Now" : fmtTime(time[i])}, ${desc.text}, ${fmtTemp(temperature_2m[i])}`);
     item.innerHTML = `
       <div class="h-time">${i === startIdx ? "Now" : fmtTime(time[i])}</div>
       <div class="h-icon">${desc.icon}</div>
       <div class="h-temp">${fmtTemp(temperature_2m[i])}</div>
     `;
+    item.addEventListener("click", () => {
+      container.scrollTo({ left: item.offsetLeft, behavior: "smooth" });
+    });
     container.appendChild(item);
   }
+
+  // A scroll position is the source of truth for display time: the first
+  // hourly tile at the left edge is the selected hour. This also makes the
+  // initial state unambiguously "Now" after every refresh.
+  let pendingFrame = null;
+  container.addEventListener("scroll", () => {
+    if (pendingFrame != null) return;
+    pendingFrame = requestAnimationFrame(() => {
+      pendingFrame = null;
+      syncDisplayTimeFromHourlyScroll(container);
+    });
+  });
+  const items = [...container.querySelectorAll(".hour-item")];
+  requestAnimationFrame(() => {
+    if (resetDisplayTime || !displayTime) {
+      container.scrollLeft = 0;
+    } else {
+      // Unit changes re-render from cached data. Keep the hour the person was
+      // exploring instead of unexpectedly returning them to "Now".
+      const preserved = items.reduce((closest, item) => {
+        const distance = Math.abs(new Date(item.dataset.time) - displayTime);
+        return distance < closest.distance ? { item, distance } : closest;
+      }, { item: items[0], distance: Infinity }).item;
+      container.scrollLeft = preserved.offsetLeft;
+    }
+    syncDisplayTimeFromHourlyScroll(container);
+  });
+}
+
+function syncDisplayTimeFromHourlyScroll(container) {
+  const items = [...container.querySelectorAll(".hour-item")];
+  if (!items.length) return;
+
+  // Interpolating between neighbouring tile positions keeps the sky and moon
+  // moving smoothly during a swipe, while the highlighted tile remains the
+  // nearest whole display hour.
+  let rightIndex = items.findIndex((item) => item.offsetLeft > container.scrollLeft);
+  if (rightIndex < 0) rightIndex = items.length - 1;
+  const leftIndex = Math.max(0, rightIndex - 1);
+  const left = items[leftIndex];
+  const right = items[rightIndex];
+  const span = Math.max(1, right.offsetLeft - left.offsetLeft);
+  const progress = leftIndex === rightIndex ? 0 : Math.min(1, Math.max(0, (container.scrollLeft - left.offsetLeft) / span));
+  const start = new Date(left.dataset.time).getTime();
+  const end = new Date(right.dataset.time).getTime();
+  displayTime = new Date(start + (end - start) * progress);
+
+  let active = leftIndex;
+  if (rightIndex !== leftIndex && progress >= 0.5) active = rightIndex;
+  items.forEach((item, index) => {
+    item.classList.toggle("active", index === active);
+    item.setAttribute("aria-current", index === active ? "true" : "false");
+  });
+
+  updateDisplayTimePresentation();
+}
+
+function updateDisplayTimePresentation() {
+  if (!displayTime) return;
+
+  const hour = displayTime.getHours() + displayTime.getMinutes() / 60;
+  // The cosine keeps the noon palette untouched while creating a long,
+  // natural-looking twilight into a cooler, calmer midnight palette.
+  const nightAmount = (1 + Math.cos((2 * Math.PI * hour) / 24)) / 2;
+  const skyStops = ["--sky-top", "--sky-upper", "--sky-lower", "--sky-bottom"];
+  skyStops.forEach((stop, index) => {
+    document.documentElement.style.setProperty(stop, mixSkyColor(DAY_SKY[index], NIGHT_SKY[index], nightAmount));
+  });
+  positionMoonOnArc(hour);
+}
+
+function mixSkyColor(day, night, amount) {
+  const channels = day.map((channel, index) => Math.round(channel + (night[index] - channel) * amount));
+  return `rgb(${channels.join(", ")})`;
+}
+
+function positionMoonOnArc(hour) {
+  const moon = el("moon-arc");
+  const nightProgress = hour >= 18 ? (hour - 18) / 12 : hour <= 6 ? (hour + 6) / 12 : null;
+  if (nightProgress == null) {
+    moon.classList.remove("visible");
+    return;
+  }
+
+  const app = el("app");
+  const appBox = app.getBoundingClientRect();
+  const quickStatsBox = document.querySelector(".quick-stats")?.getBoundingClientRect();
+  const headerBox = document.querySelector(".location-bar")?.getBoundingClientRect();
+  const lowY = quickStatsBox ? quickStatsBox.top - appBox.top + quickStatsBox.height / 2 : 250;
+  const peakY = headerBox ? headerBox.bottom - appBox.top + 20 : 76;
+  const arcHeight = Math.max(0, lowY - peakY);
+  const x = -20 + nightProgress * (appBox.width + 40);
+  const y = lowY - arcHeight * 4 * nightProgress * (1 - nightProgress);
+
+  moon.textContent = getMoonPhase().emoji;
+  moon.style.left = `${x}px`;
+  moon.style.top = `${y}px`;
+  moon.classList.add("visible");
 }
 
 function renderDaily(weather) {
@@ -267,10 +385,10 @@ function renderMoon() {
   `;
 }
 
-function renderAll() {
+function renderAll({ resetDisplayTime = true } = {}) {
   if (!lastLoc || !lastWeather) return;
   renderCurrent(lastLoc, lastWeather, lastAirQuality);
-  renderHourly(lastWeather);
+  renderHourly(lastWeather, { resetDisplayTime });
   renderDaily(lastWeather);
   renderDetails(lastWeather, lastAirQuality);
   renderMoon();
@@ -434,7 +552,7 @@ function wireSettingsPanel() {
       CONFIG.UNIT_SYSTEM = btn.dataset.unit;
       localStorage.setItem(UNIT_KEY, CONFIG.UNIT_SYSTEM);
       updateUnitButtons();
-      renderAll(); // instant re-render from cached data, no refetch needed
+      renderAll({ resetDisplayTime: false }); // instant re-render from cached data, no refetch needed
     });
   }
 
@@ -532,6 +650,8 @@ function init() {
   wireLocationPanel();
   wireSettingsPanel();
   wirePullToRefresh();
+
+  window.addEventListener("resize", updateDisplayTimePresentation);
 
   el("btn-locate").addEventListener("click", useDeviceLocation);
 
