@@ -262,10 +262,12 @@ function positionMoonOnArc(hour) {
 
   const app = el("app");
   const appBox = app.getBoundingClientRect();
-  const quickStatsBox = document.querySelector(".quick-stats")?.getBoundingClientRect();
+  const temperatureBox = el("current-temp")?.getBoundingClientRect();
   const headerBox = document.querySelector(".location-bar")?.getBoundingClientRect();
   const locationBox = document.querySelector(".place-name")?.getBoundingClientRect();
-  const lowY = quickStatsBox ? quickStatsBox.top - appBox.top + quickStatsBox.height / 2 : 250;
+  const lowY = temperatureBox
+    ? temperatureBox.top - appBox.top + temperatureBox.height / 2
+    : 250;
   const moonRadius = moon.offsetHeight / 2 || 19;
   // Keep the moon's highest point just below the place name. It may overlap
   // the coordinates, but never the selected location itself.
