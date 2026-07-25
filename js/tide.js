@@ -14,6 +14,8 @@ export async function fetchMarineSeaLevel(lat, lon) {
     longitude: lon,
     hourly: "sea_level_height_msl",
     timezone: "auto",
+    // A two-day window ensures there are usually two future extremes even
+    // when the request is made late in the day.
     forecast_days: "2",
   });
   const res = await fetch(`https://marine-api.open-meteo.com/v1/marine?${params}`);
@@ -28,29 +30,50 @@ export async function fetchMarineSeaLevel(lat, lon) {
 export function deriveTideSummary(marineData) {
   const times = marineData?.hourly?.time ?? [];
   const levels = marineData?.hourly?.sea_level_height_msl ?? [];
-  if (!times.length) return null;
+  if (!Array.isArray(times) || !Array.isArray(levels) || times.length !== levels.length || times.length < 2) {
+    return null;
+  }
+
+  // Keep the paired time/value shape intact and reject malformed values from
+  // the API before looking for a curve direction or extrema.
+  const samples = times
+    .map((time, index) => ({ time, timestamp: new Date(time).getTime(), level: levels[index] }))
+    .filter(({ timestamp, level }) => Number.isFinite(timestamp) && Number.isFinite(level));
+  if (samples.length < 2) return null;
 
   const now = Date.now();
   let nowIdx = 0;
-  for (let i = 0; i < times.length; i++) {
-    if (new Date(times[i]).getTime() <= now) nowIdx = i;
+  for (let i = 0; i < samples.length; i++) {
+    if (samples[i].timestamp <= now) nowIdx = i;
   }
 
+  let nextIdx = nowIdx + 1;
+  while (nextIdx < samples.length && samples[nextIdx].level === samples[nowIdx].level) nextIdx++;
   const trend =
-    levels[nowIdx + 1] > levels[nowIdx] ? "rising" : "falling";
+    nextIdx < samples.length && samples[nextIdx].level > samples[nowIdx].level ? "rising" : "falling";
 
-  // find local extrema over the loaded window for a rough high/low list
+  // Find local extrema, treating runs of equal hourly values as one flat
+  // peak/trough. Strict single-point checks can skip a flat high, leaving two
+  // lows displayed in a row.
   const extremes = [];
-  for (let i = 1; i < levels.length - 1; i++) {
-    const isHigh = levels[i] > levels[i - 1] && levels[i] > levels[i + 1];
-    const isLow = levels[i] < levels[i - 1] && levels[i] < levels[i + 1];
-    if (isHigh) extremes.push({ time: times[i], type: "High", level: levels[i] });
-    if (isLow) extremes.push({ time: times[i], type: "Low", level: levels[i] });
+  for (let i = 1; i < samples.length - 1; i++) {
+    const start = i;
+    while (i < samples.length - 1 && samples[i].level === samples[i + 1].level) i++;
+
+    const end = i;
+    if (end === samples.length - 1) break;
+    const level = samples[start].level;
+    const isHigh = level > samples[start - 1].level && level > samples[end + 1].level;
+    const isLow = level < samples[start - 1].level && level < samples[end + 1].level;
+    if (isHigh || isLow) {
+      const sample = samples[Math.floor((start + end) / 2)];
+      extremes.push({ time: sample.time, timestamp: sample.timestamp, type: isHigh ? "High" : "Low", level });
+    }
   }
 
   return {
-    currentLevel: levels[nowIdx],
+    currentLevel: samples[nowIdx].level,
     trend,
-    extremes: extremes.slice(0, 4),
+    extremes: extremes.filter((extreme) => extreme.timestamp > now).slice(0, 2),
   };
 }

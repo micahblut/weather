@@ -454,6 +454,15 @@ input:focus-visible {
   line-height: 1.5;
 }
 
+.github-link {
+  display: inline-flex;
+  margin-top: 6px;
+  border-radius: 50%;
+}
+.github-link:hover { opacity: 0.75; }
+.github-link:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+.github-link img { display: block; }
+
 /* Loading / error */
 .loading {
   position: fixed;
